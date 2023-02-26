@@ -1,0 +1,87 @@
+import re  # 정규식 처리 모듈
+import os
+import matplotlib.pyplot as plt
+from flask import Flask, render_template
+import io
+import base64
+
+
+def makelines(x: int) -> None:
+    print("-"*x)
+
+
+app = Flask(__name__)
+
+
+@app.route('/')
+# 현재작업하는 폴더를 저장/오픈시 사용하게 하는 os
+# 추후에 파일이 있는 폴더에서 바로 작업할때 용이하라고 사용함
+def index():
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+    log_file = "auth.log"
+
+    # 정규식 패턴에서 3으로 시작하는 IP는 찾고자 하는 IP가 아니기에 [^3] 3이 없는 것을 IP_PATTERN 으로 넣음
+    IP_PATTERN = r"\d{1,3}[^3][^110]\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+
+    with open(log_file, "r") as f:
+
+        log = f.read()
+        ips = re.findall(IP_PATTERN, log)
+
+        ip_counts = {}
+
+        for ip in ips:
+            if ip in ip_counts:
+                ip_counts[ip] += 1
+            else:
+                ip_counts[ip] = 1
+
+        sorted_ips = sorted(ip_counts.items(),
+                            key=lambda x: x[1], reverse=True)[:30]
+
+        top_ip = sorted_ips[:30]
+        # else:
+        #     top_ip = sorted_ips[:10]
+
+    # line_count = "총 접속IP는 {len(ip_counts)}개 입니다"
+    # makelines(len(line_count))
+    # print(f"{log_file[i]}파일의 IP주소")
+    # makelines(len(line_count))
+
+    # for ip, count in top_ip:
+    #     # 출력시의 포맷을 맞추어 주기 위해서 정수형 4자리수 :4d 를 넣음
+    #     print(f'{count:4d}번 접속IP : {ip}')
+
+    # makelines(len(line_count))
+    # print(f"총 접속IP는 {len(ip_counts)}개 입니다")
+    # makelines(len(line_count))
+
+    colors = ['red', 'lightsalmon', 'yellow', 'green',
+              'aqua', 'dodgerblue', 'brown', 'dimgray', 'lightskyblue', 'silver']
+    plt.rcParams['font.family'] = 'Malgun Gothic'  # Windows 맑은 고딕
+    plt.rcParams['font.size'] = 14  # 글자 크기
+    # 한글 폰트 사용 시, 마이너스 글자가 깨지는 현상을 해결
+    plt.rcParams['figure.figsize'] = [20, 10]
+    plt.rcParams['figure.dpi'] = 60
+    plt.rcParams['axes.unicode_minus'] = False
+    # top_ip 딕셔너리 안에서 ip,count 중에서 count 를 x축(horizontal)에 넣기
+    plt.barh(range(len(top_ip)), [count for ip, count in top_ip], color=colors)
+    # top_ip 딕셔너리 안에서 ip,count 중에서 ip 를 y축에 넣기
+    plt.yticks(range(len(top_ip)), [ip for ip, count in top_ip])
+    plt.ylabel("IP주소")
+    plt.xlabel("접속시도횟수")
+    plt.title(f"{log_file}분석")
+    # plt.show()
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    image_data = base64.b64encode(buf.getvalue()).decode("utf-8")
+    plt.close()
+
+    return render_template('access_rank.html', sorted_ips=sorted_ips, image_data=image_data)
+
+
+if __name__ == '__main__':
+    app.run()
